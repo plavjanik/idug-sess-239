@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo A: An Assistant Meets a Subsystem</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230A0F1A'/%3E%3Ctext x='2' y='12' font-size='10' fill='%233FD68C' font-family='monospace' font-weight='bold'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root{
+    --ground:#0A0F1A; --panel:#121B2B; --panel-2:#0E1523; --line:#25334D;
+    --text:#D9E2F1; --muted:#8B99B5;
+    --green:#3FD68C; --green-dim:#2A9A66; --amber:#FFB224; --alarm:#FF6B6B; --blue:#6FA8FF;
+    --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans:"IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--ground); color:var(--text); font:16.5px/1.55 var(--sans);
+    min-height:100vh; padding:20px clamp(16px,3vw,40px) 24px;
+  }
+
+  header{
+    display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px;
+    padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--line);
+  }
+  h1{font:600 20px/1.2 var(--mono); margin:0; letter-spacing:.02em}
+  h1 .cursor{color:var(--green); animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  header .sub{color:var(--muted); font-size:14.5px}
+  .spacer{flex:1}
+
+  #play{
+    font:600 15.5px var(--sans); cursor:pointer;
+    background:var(--green); color:#052012; border:0; border-radius:8px;
+    padding:8px 24px; letter-spacing:.02em; min-width:120px;
+  }
+  #play:hover{filter:brightness(1.1)}
+  #play:focus-visible{outline:2px solid var(--text); outline-offset:2px}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel-2)}
+  .seg button{font:500 14.5px var(--sans); color:var(--muted); background:none; border:0; padding:7px 12px; cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--blue); color:#08101F; font-weight:600}
+  .seg-label{font-size:13px; letter-spacing:.09em; color:var(--muted); text-transform:uppercase; margin-right:8px}
+
+  /* the pattern ribbon */
+  .ribbon{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin:0 0 14px; font:500 13.5px var(--mono); letter-spacing:.04em;
+  }
+  .rib{
+    color:var(--muted); border:1px solid var(--line); border-radius:999px;
+    padding:4px 14px; background:var(--panel-2); transition:all .3s;
+  }
+  .rib.active{color:#08101F; background:var(--green); border-color:var(--green); font-weight:600}
+  .rib.done{color:var(--green); border-color:var(--green-dim)}
+  .rib-arrow{color:var(--line)}
+
+  .grid{display:grid; grid-template-columns:minmax(380px,46%) 1fr; gap:18px; align-items:start}
+  @media (max-width:1020px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px 16px;
+  }
+  .card h2{
+    font:600 13px var(--sans); letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .card h2 .tag{
+    font:600 13px var(--mono); border-radius:4px; padding:1px 7px;
+    background:rgba(63,214,140,.12); color:var(--green); border:1px solid rgba(63,214,140,.4);
+  }
+
+  /* ---------- transcript ---------- */
+  #chat{min-height:420px; max-height:70vh; overflow-y:auto; padding-right:4px}
+  .msg{opacity:0; transform:translateY(8px); transition:opacity .45s, transform .45s; margin-bottom:10px}
+  .msg.in{opacity:1; transform:none}
+  .bubble{border-radius:10px; padding:9px 13px; font-size:15px; line-height:1.5}
+  .bubble.user{background:rgba(111,168,255,.1); border:1px solid rgba(111,168,255,.4)}
+  .bubble.user::before{content:"user"; display:block; font:600 13px var(--mono); color:var(--blue); margin-bottom:2px}
+  .bubble.ai{background:rgba(63,214,140,.06); border:1px solid rgba(63,214,140,.35)}
+  .bubble.ai::before{content:"assistant"; display:block; font:600 13px var(--mono); color:var(--green); margin-bottom:2px}
+  .tool{
+    font:14px/1.55 var(--mono); border:1px solid rgba(255,178,36,.4); border-radius:10px;
+    background:rgba(255,178,36,.05); padding:8px 12px;
+  }
+  .tool .t-head{color:var(--amber); font-weight:600}
+  .tool .t-sql{color:#9EC1F7; white-space:pre-wrap; word-break:break-word}
+  .tool .t-res{color:var(--muted); border-top:1px dashed rgba(255,178,36,.3); margin-top:6px; padding-top:5px}
+  .tool .t-res b{color:var(--text); font-weight:600}
+  .tool .t-ctx{color:var(--green-dim); font-size:13px}
+
+  /* ---------- mental model ---------- */
+  .conn{
+    display:none; font:14px var(--mono); border:1px solid rgba(111,168,255,.45);
+    border-radius:8px; padding:8px 12px; background:rgba(111,168,255,.06); margin-bottom:12px;
+  }
+  .conn.show{display:block}
+  .conn .c-k{color:var(--muted)} .conn .c-v{color:var(--blue); font-weight:600}
+
+  #model-wrap{position:relative}
+  #fkcanvas{position:absolute; inset:0; pointer-events:none; z-index:3}
+  .tables{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:34px 26px; position:relative; z-index:2;
+    padding:6px 2px 2px;
+  }
+  .tbl{
+    border:1px solid var(--line); border-radius:8px; background:var(--panel-2);
+    padding:7px 10px 8px; opacity:0; transform:scale(.92); transition:all .45s;
+    min-height:52px;
+  }
+  .tbl.in{opacity:1; transform:none}
+  .tbl .t-name{font:600 13.5px var(--mono); color:var(--text); letter-spacing:.03em}
+  .tbl ul{list-style:none; margin:5px 0 0; padding:0; font:13px/1.6 var(--mono); color:var(--muted)}
+  .tbl ul li{opacity:0; transition:opacity .4s}
+  .tbl ul li.in{opacity:1}
+  .tbl ul .pk{color:var(--blue)} .tbl ul .fk{color:var(--amber)}
+  .tbl.offgraph{border-style:dashed}
+  .tbl.offgraph .t-name::after{content:" ⚠"; color:var(--amber)}
+  .tbl.hot{border-color:var(--green); box-shadow:0 0 0 1.5px rgba(63,214,140,.55); background:rgba(63,214,140,.06)}
+  .tbl.hot .t-name{color:var(--green)}
+
+  .offnote{
+    display:none; margin-top:10px; font-size:14px; color:var(--muted);
+    border:1px dashed rgba(255,178,36,.4); border-radius:8px; padding:8px 12px;
+    background:rgba(255,178,36,.04);
+  }
+  .offnote.show{display:block}
+  .offnote b{color:var(--amber)}
+
+  /* result chart */
+  .chart{display:none; margin-top:14px}
+  .chart.show{display:block}
+  .chart h3{font:600 13px var(--sans); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:0 0 8px}
+  .bar-row{display:grid; grid-template-columns:150px 1fr 62px; gap:8px; align-items:center; margin-bottom:6px;
+    font:13.5px var(--mono)}
+  .bar-row .b-label{color:var(--text); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .bar-row .b-track{display:block; height:16px; background:var(--panel-2); border:1px solid var(--line); border-radius:4px; overflow:hidden}
+  .bar-row .b-fill{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--green-dim), var(--green)); transition:width 1s cubic-bezier(.3,0,.2,1)}
+  .bar-row .b-val{color:var(--green); font-weight:600; font-variant-numeric:tabular-nums}
+
+  .scorecard{
+    display:none; margin-top:12px; border:1px solid rgba(63,214,140,.4); border-radius:8px;
+    padding:10px 14px; background:rgba(63,214,140,.07); font-size:15px;
+  }
+  .scorecard.show{display:block}
+  .scorecard b{color:var(--green)}
+
+  footer{
+    margin-top:20px; padding-top:12px; border-top:1px solid var(--line);
+    color:var(--muted); font-size:13.5px; display:flex; gap:18px; flex-wrap:wrap;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important; transition:none!important}
+  }
+
+  /* ---------- light theme (added 2026-09-28) ----------
+     Purely additive: dark mode is the default and unchanged.
+     html[data-theme="light"] is set by the toggle button (persisted
+     in localStorage "idug-demo-theme"). */
+  html[data-theme="light"]{
+    color-scheme:light;
+    --ground:#EEF1F7; --panel:#FFFFFF; --panel-2:#F2F5FA; --line:#C9D3E3;
+    --text:#1A2540; --muted:#5A6880;
+    --green:#0E7C48; --green-dim:#0A6238; --amber:#996300; --alarm:#C7323C; --blue:#2158C9;
+  }
+  #themeToggle{
+    position:fixed; top:12px; right:12px; z-index:500;
+    width:34px; height:34px; padding:0; border-radius:50%;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+    font-size:17px; line-height:1; cursor:pointer;
+  }
+  #themeToggle:hover{color:var(--text); border-color:var(--muted)}
+
+  html[data-theme="light"] #play,
+  html[data-theme="light"] .seg button[aria-pressed="true"],
+  html[data-theme="light"] .rib.active{color:#fff}
+  html[data-theme="light"] .tool .t-sql{color:#2456C4}
+
+  /* ---------- font-size control (added 2026-09-28) ----------
+     Three steps via CSS zoom on body — the in-page equivalent of browser
+     zoom. Persisted in localStorage "idug-demo-fontsize" ("1"|"2"|"3").
+     Multiplies with browser zoom. Media-query breakpoints don't react to
+     CSS zoom, so at A++ in a narrow window content may scroll horizontally
+     instead of stacking. */
+  html[data-fontsize="2"] body{zoom:1.2}
+  html[data-fontsize="3"] body{zoom:1.4}
+  #fontCtl{
+    position:fixed; top:12px; right:56px; z-index:500;
+    display:flex; align-items:stretch; height:34px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:999px; overflow:hidden;
+  }
+  #fontCtl button{
+    border:0; background:none; color:var(--muted); cursor:pointer;
+    font-family:var(--sans); font-weight:600; padding:0 10px; line-height:1;
+  }
+  #fontCtl button:hover{color:var(--text)}
+  #fontCtl button[aria-pressed="true"]{background:var(--blue); color:#fff}
+  #fontCtl .f1{font-size:12px} #fontCtl .f2{font-size:14.5px} #fontCtl .f3{font-size:17px}
+  /* keep header content clear of the fixed theme + text-size controls */
+  header{padding-right:176px}
+</style>
+<script>try{if(localStorage.getItem("idug-demo-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}</script>
+<script>try{var fs=localStorage.getItem("idug-demo-fontsize");if(fs==="2"||fs==="3")document.documentElement.dataset.fontsize=fs}catch(e){}</script>
+
+</head>
+<body>
+<button id="themeToggle" aria-label="Switch to light theme" title="Switch to light theme">☀</button>
+<div id="fontCtl" role="group" aria-label="Text size">
+<button class="f1" data-fs="1" title="Normal text size">A</button>
+<button class="f2" data-fs="2" title="Larger text">A</button>
+<button class="f3" data-fs="3" title="Largest text">A</button>
+</div>
+
+<header>
+  <div>
+    <h1>Demo A: An Assistant Meets a Subsystem<span class="cursor">_</span></h1>
+    <div class="sub">Replay of a real capture (2026-08-17, sanitized) &mdash; Claude Code + Zowe MCP db2 bridge vs. Db2 13 for z/OS.</div>
+  </div>
+  <div class="spacer"></div>
+  <div>
+    <span class="seg-label">Speed</span><span class="seg" id="speedseg" role="group" aria-label="Speed"></span>
+  </div>
+  <button id="play">&#9654;&nbsp; Play</button>
+</header>
+
+<div class="ribbon" id="ribbon"></div>
+
+<div class="grid">
+  <!-- left: transcript -->
+  <div class="card">
+    <h2>The conversation <span class="tag">REAL CAPTURE</span></h2>
+    <div id="chat"></div>
+  </div>
+
+  <!-- right: mental model -->
+  <div class="card">
+    <h2>The agent&rsquo;s mental model <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">&mdash; built from the catalog, not from guesses</span></h2>
+    <div class="conn" id="conn">
+      <span class="c-k">system</span> <span class="c-v">zos1.example.com:446</span> &nbsp;
+      <span class="c-k">user</span> <span class="c-v">AGENT01</span> &nbsp;
+      <span class="c-k">location</span> <span class="c-v">DB2TLOC</span> &nbsp;
+      <span class="c-k">schema</span> <span class="c-v">DEMO</span>
+    </div>
+    <div id="model-wrap">
+      <svg id="fkcanvas"></svg>
+      <div class="tables" id="tables"></div>
+    </div>
+    <div class="offnote" id="offnote">
+      <b>Two tables sit off the join graph</b> &mdash; the agent noticed. PAYMENT_TOKENS (the crown-jewels
+      stand-in) and FEEDBACK (free text typed by customers). Remember both for Demo B.
+    </div>
+    <div class="chart" id="chart">
+      <h3>Q2 2026 revenue &mdash; top 5 products</h3>
+      <div id="bars"></div>
+    </div>
+    <div class="scorecard" id="score">
+      <b>4 catalog + 1 data query &middot; SELECT-only throughout &middot; 0 guesses.</b>
+      Wide &amp; cheap first (SYSTABLES), then narrow (SYSCOLUMNS), then relationships (SYSRELS + SYSFOREIGNKEYS),
+      then <em>one</em> aggregate with FETCH FIRST 5 ROWS ONLY. This is what &ldquo;an accurate mental model before
+      it suggests changes&rdquo; looks like.
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Every result carried <span style="font-family:var(--mono)">_context: system=zos1.example.com</span> &mdash; the agent always knows <em>who and where</em> it is</span>
+  <span>Companion demo to slide &ldquo;Demo A&rdquo; &mdash; IDUG EMEA 2026, SESS-239</span>
+</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------------- static data ---------------- */
+const RIBBON = ["who am I?","wide & cheap","narrow","relationships","one aggregate","answer"];
+
+const TABLES = [
+  {n:"CUSTOMERS",      cols:[["CUSTOMER_ID","pk"],["NAME",""]]},
+  {n:"ORDERS",         cols:[["ORDER_ID","pk"],["CUSTOMER_ID","fk"],["ORDER_DATE",""]]},
+  {n:"ORDER_ITEMS",    cols:[["ORDER_ID","fk"],["PRODUCT_ID","fk"],["QUANTITY",""],["UNIT_PRICE",""]]},
+  {n:"FEEDBACK",       cols:[["FEEDBACK_ID","pk"],["CUSTOMER_ID",""],["NOTE",""],["FB_DATE",""]], off:true},
+  {n:"PAYMENT_TOKENS", cols:[["CUSTOMER_ID",""],["CARD_TOKEN",""]], off:true},
+  {n:"PRODUCTS",       cols:[["PRODUCT_ID","pk"],["PRODUCT_NAME",""]]}
+];
+const FKS = [["ORDERS","CUSTOMERS"],["ORDER_ITEMS","ORDERS"],["ORDER_ITEMS","PRODUCTS"]];
+const JOINPATH = ["ORDERS","ORDER_ITEMS","PRODUCTS"];
+const TOP5 = [
+  ["Espresso Machine X9", 5388],
+  ["Grinder Pro",         1890],
+  ["Barista Kit",          297],
+  ["Milk Frother",         240],
+  ["Coffee Scale",         180]
+];
+
+/* ---------------- transcript beats ----------------
+   each: {d: ms after previous, kind, ...} */
+const SCRIPT = [
+  {d:400,  rib:0, kind:"user", html:`What were our top 5 products by revenue in Q2 2026? Use the db2 MCP tools.
+    My schema is DEMO. <b>First learn the schema from the Db2 catalog.</b>`},
+  {d:1400, kind:"ai", html:`I'll learn your schema from the catalog, then run the revenue query.`},
+  {d:1300, kind:"tool", head:"db2ListConnections",
+    res:`{ id: <b>"demo"</b>, host: <b>zos1.example.com</b>, port: <b>446</b>, user: <b>AGENT01</b>, database: <b>DB2TLOC</b>, active: true }`,
+    fx:"conn"},
+  {d:1800, rib:1, kind:"tool", head:"db2ExecuteSql",
+    sql:`SELECT NAME, TYPE FROM SYSIBM.SYSTABLES WHERE CREATOR='DEMO'`,
+    res:`<b>6 tables</b>: CUSTOMERS · FEEDBACK · ORDERS · ORDER_ITEMS · PAYMENT_TOKENS · PRODUCTS`,
+    ctx:true, fx:"tables"},
+  {d:2600, rib:2, kind:"tool", head:"db2ExecuteSql",
+    sql:`SELECT TBNAME, NAME, COLTYPE, LENGTH, NULLS FROM SYSIBM.SYSCOLUMNS
+WHERE TBCREATOR='DEMO' ORDER BY TBNAME, COLNO`,
+    res:`<b>15 columns</b> across the 6 tables — types, lengths, nullability`,
+    ctx:true, fx:"columns"},
+  {d:2600, rib:3, kind:"tool", head:"db2ExecuteSql",
+    sql:`SELECT R.TBNAME, R.REFTBNAME, F.COLNAME FROM SYSIBM.SYSRELS R
+JOIN SYSIBM.SYSFOREIGNKEYS F ON … WHERE R.CREATOR='DEMO'`,
+    res:`FK graph: <b>ORDERS→CUSTOMERS · ORDER_ITEMS→ORDERS · ORDER_ITEMS→PRODUCTS</b>`,
+    ctx:true, fx:"fks"},
+  {d:2400, kind:"ai", html:`Schema mapped: ORDER_ITEMS links ORDERS (ORDER_DATE) to PRODUCTS, with QUANTITY and
+    UNIT_PRICE on the line item. PAYMENT_TOKENS and FEEDBACK have no FK relationships — not needed for this question.
+    Running the Q2 query:`, fx:"offnote"},
+  {d:1800, rib:4, kind:"tool", head:"db2ExecuteSql",
+    sql:`SELECT P.PRODUCT_NAME, SUM(OI.QUANTITY*OI.UNIT_PRICE) AS REVENUE
+FROM DEMO.ORDER_ITEMS OI
+JOIN DEMO.ORDERS O   ON O.ORDER_ID   = OI.ORDER_ID
+JOIN DEMO.PRODUCTS P ON P.PRODUCT_ID = OI.PRODUCT_ID
+WHERE O.ORDER_DATE BETWEEN '2026-04-01' AND '2026-06-30'
+GROUP BY P.PRODUCT_NAME ORDER BY REVENUE DESC
+FETCH FIRST 5 ROWS ONLY`,
+    res:`5 rows`, ctx:true, fx:"joinpath"},
+  {d:2200, rib:5, kind:"fx", fx:"chart"},
+  {d:2600, kind:"ai", html:`✓ <b>Espresso Machine X9</b> leads Q2 with 5,388, ahead of Grinder Pro (1,890) and
+    Barista Kit (297). Answered with 4 catalog+data queries, an accurate mental model, and 0 guesses.`, fx:"score"}
+];
+
+/* ---------------- rendering ---------------- */
+function renderRibbon(active){
+  const box = $("ribbon"); box.innerHTML = "";
+  RIBBON.forEach((r,i) => {
+    if(i){ const a = document.createElement("span"); a.className = "rib-arrow"; a.textContent = "→"; box.appendChild(a); }
+    const el = document.createElement("span");
+    el.className = "rib" + (i === active ? " active" : i < active ? " done" : "");
+    el.textContent = r;
+    box.appendChild(el);
+  });
+}
+
+function renderTablesSkeleton(){
+  const box = $("tables"); box.innerHTML = "";
+  TABLES.forEach(t => {
+    const d = document.createElement("div");
+    d.className = "tbl" + (t.off ? " offgraph-pending" : "");
+    d.id = "tbl-" + t.n;
+    d.innerHTML = `<div class="t-name">${t.n}</div><ul>${
+      t.cols.map(c => `<li class="${c[1]}">${c[0]}${c[1] ? " <span style='opacity:.8'>[" + c[1].toUpperCase() + "]</span>" : ""}</li>`).join("")
+    }</ul>`;
+    box.appendChild(d);
+  });
+}
+
+function addMsg(b){
+  const chat = $("chat");
+  const wrap = document.createElement("div");
+  wrap.className = "msg";
+  if(b.kind === "user" || b.kind === "ai"){
+    wrap.innerHTML = `<div class="bubble ${b.kind === "user" ? "user" : "ai"}">${b.html}</div>`;
+  } else if(b.kind === "tool"){
+    wrap.innerHTML = `<div class="tool"><span class="t-head">→ ${b.head}</span>${
+      b.sql ? `\n<span class="t-sql">${b.sql}</span>` : ""}
+      <div class="t-res">← ${b.res}${b.ctx ? ` <span class="t-ctx">[_context: system=zos1.example.com]</span>` : ""}</div></div>`;
+  }
+  chat.appendChild(wrap);
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add("in")));
+  chat.scrollTop = chat.scrollHeight;
+}
+
+/* ---------------- side effects ---------------- */
+function centerOf(el, root){
+  /* gBCR is zoom-scaled; the SVG canvas lays out in unzoomed units */
+  const z = parseFloat(getComputedStyle(document.body).zoom) || 1;
+  const a = el.getBoundingClientRect(), r = root.getBoundingClientRect();
+  return {x:(a.left - r.left + a.width/2)/z, y:(a.top - r.top + a.height/2)/z,
+          l:(a.left - r.left)/z, t:(a.top - r.top)/z, w:a.width/z, h:a.height/z};
+}
+
+function drawFks(){
+  const svg = $("fkcanvas"), root = $("model-wrap");
+  svg.setAttribute("width", root.clientWidth);
+  svg.setAttribute("height", root.clientHeight);
+  svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0,0 L8,4 L0,8 z" style="fill:var(--amber)"/></marker></defs>`;
+  FKS.forEach((fk, i) => {
+    const a = centerOf($("tbl-"+fk[0]), root), b = centerOf($("tbl-"+fk[1]), root);
+    /* connect nearest edges horizontally or vertically */
+    let x1, y1, x2, y2;
+    if(Math.abs(a.x - b.x) > Math.abs(a.y - b.y)){
+      x1 = a.x < b.x ? a.l + a.w : a.l;  y1 = a.y;
+      x2 = a.x < b.x ? b.l : b.l + b.w;  y2 = b.y;
+    } else {
+      x1 = a.x; y1 = a.y < b.y ? a.t + a.h : a.t;
+      x2 = b.x; y2 = a.y < b.y ? b.t : b.t + b.h;
+    }
+    const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1",x1); line.setAttribute("y1",y1);
+    line.setAttribute("x2",x2); line.setAttribute("y2",y2);
+    line.style.stroke = "var(--amber)"; line.setAttribute("stroke-width","1.6");
+    line.setAttribute("marker-end","url(#arr)");
+    line.id = "fk-" + i;
+    const len = Math.hypot(x2-x1, y2-y1);
+    if(!reduced){
+      line.style.strokeDasharray = len;
+      line.style.strokeDashoffset = len;
+      line.style.transition = "stroke-dashoffset .9s ease " + (i*.35) + "s";
+      requestAnimationFrame(() => requestAnimationFrame(() => line.style.strokeDashoffset = "0"));
+    }
+    svg.appendChild(line);
+  });
+}
+
+function renderChart(){
+  $("chart").classList.add("show");
+  const box = $("bars"); box.innerHTML = "";
+  const max = TOP5[0][1];
+  TOP5.forEach((p,i) => {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `<span class="b-label">${p[0]}</span>
+      <span class="b-track"><span class="b-fill" id="bf${i}"></span></span>
+      <span class="b-val">${p[1].toLocaleString("en-US")}</span>`;
+    box.appendChild(row);
+    setTimeout(() => { $("bf"+i).style.width = (p[1]/max*100) + "%"; }, reduced ? 0 : 150 + i*180);
+  });
+}
+
+const FX = {
+  conn(){ $("conn").classList.add("show"); },
+  tables(){
+    document.querySelectorAll(".tbl").forEach((el,i) =>
+      setTimeout(() => el.classList.add("in"), reduced ? 0 : 130*i));
+  },
+  columns(){
+    document.querySelectorAll(".tbl ul li").forEach((el,i) =>
+      setTimeout(() => el.classList.add("in"), reduced ? 0 : 60*i));
+  },
+  fks(){
+    drawFks();
+    TABLES.filter(t => t.off).forEach(t => $("tbl-"+t.n).classList.add("offgraph"));
+  },
+  offnote(){ $("offnote").classList.add("show"); },
+  joinpath(){
+    JOINPATH.forEach((n,i) => setTimeout(() => $("tbl-"+n).classList.add("hot"), reduced ? 0 : 200*i));
+    document.querySelectorAll("#fkcanvas line").forEach(l => { l.style.stroke = "var(--green)"; });
+    document.querySelectorAll("#fkcanvas marker path").forEach(p => { p.style.fill = "var(--green)"; });
+  },
+  chart(){ renderChart(); },
+  score(){ $("score").classList.add("show"); }
+};
+
+/* ---------------- scheduler ---------------- */
+let speed = 1, idx = 0, playing = false, timer = null;
+
+function reset(){
+  clearTimeout(timer); timer = null; idx = 0; playing = false;
+  $("chat").innerHTML = "";
+  $("conn").classList.remove("show");
+  $("offnote").classList.remove("show");
+  $("chart").classList.remove("show");
+  $("score").classList.remove("show");
+  $("fkcanvas").innerHTML = "";
+  renderTablesSkeleton();
+  renderRibbon(-1);
+}
+
+function stepNext(){
+  if(idx >= SCRIPT.length){ playing = false; setPlayLabel(true); return; }
+  const b = SCRIPT[idx++];
+  timer = setTimeout(() => {
+    if(b.rib !== undefined) renderRibbon(b.rib);
+    if(b.kind !== "fx") addMsg(b);
+    if(b.fx) FX[b.fx]();
+    stepNext();
+  }, reduced ? 0 : b.d / speed);
+}
+
+function setPlayLabel(finished){
+  $("play").innerHTML = finished ? "&#8634;&nbsp; Replay"
+    : playing ? "&#10074;&#10074;&nbsp; Pause" : "&#9654;&nbsp; " + (idx > 0 ? "Resume" : "Play");
+}
+
+$("play").onclick = () => {
+  if(!playing && idx >= SCRIPT.length) reset();
+  playing = !playing;
+  setPlayLabel();
+  if(playing) stepNext();
+  else clearTimeout(timer);
+};
+
+/* speed segment */
+[1, 1.5, 2].forEach(s => {
+  const b = document.createElement("button");
+  b.textContent = s + "×";
+  b.setAttribute("aria-pressed", s === speed);
+  b.onclick = () => {
+    speed = s;
+    document.querySelectorAll("#speedseg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  };
+  $("speedseg").appendChild(b);
+});
+
+document.addEventListener("keydown", e => { if(e.key === " "){ e.preventDefault(); $("play").click(); } });
+addEventListener("resize", () => { if($("fkcanvas").innerHTML) FX.fks(); });
+
+reset();
+</script>
+<script>
+(function(){
+  const KEY = "idug-demo-theme", root = document.documentElement,
+        btn = document.getElementById("themeToggle");
+  function paint(){
+    const l = root.dataset.theme === "light";
+    btn.textContent = l ? "☾" : "☀";
+    const t = l ? "Switch to dark theme" : "Switch to light theme";
+    btn.setAttribute("aria-label", t); btn.title = t;
+  }
+  paint();
+  btn.addEventListener("click", () => {
+    const l = root.dataset.theme !== "light";
+    if(l) root.dataset.theme = "light"; else delete root.dataset.theme;
+    try{ localStorage.setItem(KEY, l ? "light" : "dark"); }catch(e){}
+    paint(); btn.blur();
+  });
+})();
+</script>
+<script>
+(function(){
+  const KEY = "idug-demo-fontsize", root = document.documentElement,
+        btns = document.querySelectorAll("#fontCtl button");
+  function paint(){
+    const cur = root.dataset.fontsize || "1";
+    btns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fs === cur)));
+  }
+  paint();
+  btns.forEach(b => b.addEventListener("click", () => {
+    const fs = b.dataset.fs;
+    if(fs === "1") delete root.dataset.fontsize; else root.dataset.fontsize = fs;
+    try{ localStorage.setItem(KEY, fs); }catch(e){}
+    paint(); b.blur();
+    window.dispatchEvent(new Event("resize"));
+  }));
+})();
+</script>
+</body>
+</html>

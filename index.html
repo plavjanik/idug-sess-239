@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SESS-239 Demo Index</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230A0F1A'/%3E%3Ctext x='3.5' y='12' font-size='10' fill='%236FA8FF' font-family='monospace' font-weight='bold'%3E%E2%98%B0%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root{
+    --ground:#0A0F1A; --panel:#121B2B; --panel-2:#0E1523; --line:#25334D;
+    --text:#D9E2F1; --muted:#8B99B5;
+    --green:#3FD68C; --amber:#FFB224; --alarm:#FF6B6B; --blue:#6FA8FF;
+    --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans:"IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--ground); color:var(--text); font:16.5px/1.55 var(--sans);
+    min-height:100vh; padding:22px clamp(16px,3vw,44px) 26px;
+  }
+  header{padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid var(--line)}
+  h1{font:600 22px/1.25 var(--mono); margin:0 0 4px; letter-spacing:.02em}
+  h1 .cursor{color:var(--blue); animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  header .sub{color:var(--muted); font-size:15px}
+  header .sub b{color:var(--text)}
+
+  .acts{display:flex; flex-direction:column; gap:18px}
+  .act .ah{
+    font:600 13px var(--sans); letter-spacing:.13em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 8px;
+  }
+  .act .ah b{color:var(--blue)}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:12px}
+
+  a.demo{
+    display:block; text-decoration:none; color:var(--text);
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px 13px; transition:border-color .2s, transform .15s;
+  }
+  a.demo:hover{border-color:var(--blue); transform:translateY(-2px)}
+  a.demo:focus-visible{outline:2px solid var(--blue); outline-offset:2px}
+  .demo .dh{display:flex; align-items:baseline; gap:9px}
+  .demo .dh .ico{font-size:17px}
+  .demo .dh .t{font:600 16.5px var(--sans)}
+  .demo .dh .file{margin-left:auto; font:13px var(--mono); color:var(--muted); white-space:nowrap}
+  .demo .slide{font:13px var(--mono); color:var(--blue); margin:4px 0 5px}
+  .demo .blurb{font-size:14px; color:var(--muted); line-height:1.5}
+  .demo .meta{
+    display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:9px;
+    border-top:1px dashed var(--line); padding-top:8px; font:13px var(--mono);
+  }
+  .demo .meta .zoom{color:var(--green)}
+  .demo .meta .zoom::before{content:"🔍 "; font-size:13px}
+  .demo .meta .keys{color:var(--muted)}
+  .demo .meta .keys b{color:var(--text); background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-weight:600}
+  .demo .meta .live{color:var(--amber)}
+
+  .notes{
+    margin-top:20px; border:1px solid var(--line); border-radius:10px; background:var(--panel);
+    padding:12px 16px;
+  }
+  .notes .nh{font:600 13px var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:7px}
+  .notes ul{margin:0; padding-left:18px; font-size:14px; color:var(--muted); line-height:1.7}
+  .notes li b{color:var(--text)}
+  .notes code{font:13px var(--mono); color:var(--green)}
+
+  /* ---------- light theme (added 2026-09-28) ----------
+     Purely additive: dark mode is the default and unchanged.
+     html[data-theme="light"] is set by the toggle button (persisted
+     in localStorage "idug-demo-theme"). */
+  html[data-theme="light"]{
+    color-scheme:light;
+    --ground:#EEF1F7; --panel:#FFFFFF; --panel-2:#F2F5FA; --line:#C9D3E3;
+    --text:#1A2540; --muted:#5A6880;
+    --green:#0E7C48; --green-dim:#0A6238; --amber:#996300; --alarm:#C7323C; --blue:#2158C9;
+  }
+  #themeToggle{
+    position:fixed; top:12px; right:12px; z-index:500;
+    width:34px; height:34px; padding:0; border-radius:50%;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
+    font-size:17px; line-height:1; cursor:pointer;
+  }
+  #themeToggle:hover{color:var(--text); border-color:var(--muted)}
+
+  /* ---------- font-size control (added 2026-09-28) ----------
+     Three steps via CSS zoom on body — the in-page equivalent of browser
+     zoom. Persisted in localStorage "idug-demo-fontsize" ("1"|"2"|"3").
+     Multiplies with browser zoom. Media-query breakpoints don't react to
+     CSS zoom, so at A++ in a narrow window content may scroll horizontally
+     instead of stacking. */
+  html[data-fontsize="2"] body{zoom:1.2}
+  html[data-fontsize="3"] body{zoom:1.4}
+  #fontCtl{
+    position:fixed; top:12px; right:56px; z-index:500;
+    display:flex; align-items:stretch; height:34px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:999px; overflow:hidden;
+  }
+  #fontCtl button{
+    border:0; background:none; color:var(--muted); cursor:pointer;
+    font-family:var(--sans); font-weight:600; padding:0 10px; line-height:1;
+  }
+  #fontCtl button:hover{color:var(--text)}
+  #fontCtl button[aria-pressed="true"]{background:var(--blue); color:#fff}
+  #fontCtl .f1{font-size:12px} #fontCtl .f2{font-size:14.5px} #fontCtl .f3{font-size:17px}
+  /* keep header content clear of the fixed theme + text-size controls */
+  header{padding-right:176px}
+</style>
+<script>try{if(localStorage.getItem("idug-demo-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}</script>
+<script>try{var fs=localStorage.getItem("idug-demo-fontsize");if(fs==="2"||fs==="3")document.documentElement.dataset.fontsize=fs}catch(e){}</script>
+
+</head>
+<body>
+<button id="themeToggle" aria-label="Switch to light theme" title="Switch to light theme">☀</button>
+<div id="fontCtl" role="group" aria-label="Text size">
+<button class="f1" data-fs="1" title="Normal text size">A</button>
+<button class="f2" data-fs="2" title="Larger text">A</button>
+<button class="f3" data-fs="3" title="Largest text">A</button>
+</div>
+
+<header>
+  <h1>SESS-239 · Animated demo index<span class="cursor">▮</span></h1>
+  <div class="sub"><b>SQL Injection on SterAIds: Is Your Db2 Ready for AI-Assisted Attackers?</b> ·
+  IDUG EMEA 2026, Porto · Wed 2026-09-30, 2:00pm, Room E · seven self-contained pages, no server, no network needed</div>
+</header>
+
+<div class="acts">
+
+  <div class="act">
+    <div class="ah"><b>Slides</b> — the full deck</div>
+    <div class="cards">
+      <a class="demo" href="./slides/SESS-239-SQL-Injection-on-SterAIds.pdf">
+        <div class="dh"><span class="ico">📑</span><span class="t">Session slides (PDF)</span><span class="file">43 pages · 6.9 MB</span></div>
+        <div class="blurb">The complete SESS-239 deck as presented at IDUG EMEA 2026 in Porto — Wed 2026-09-30, 2:00pm, Room E.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="act">
+    <div class="ah"><b>Act 1</b> — SQL injection in 2026</div>
+    <div class="cards">
+      <a class="demo" href="./sql-injection-anatomy.html">
+        <div class="dh"><span class="ico">💉</span><span class="t">SQL Injection Anatomy</span><span class="file">sql-injection-anatomy.html</span></div>
+        <div class="slide">slide 6 “SQL Injection in One Slide” · slide 8 cures</div>
+        <div class="blurb">The classic attack, byte by byte, in 7 languages (COBOL · PL/I · HLASM · REXX · Java · Python · TypeScript). Presets run recon before theft; Fixed mode kills every attack with one <code style="color:inherit">?</code>.</div>
+        <div class="meta"><span class="zoom">zoom 150–175%</span><span class="keys">mouse: language / Vulnerable–Fixed toggles + presets</span></div>
+      </a>
+      <a class="demo" href="./order-by-oracle.html">
+        <div class="dh"><span class="ico">🔮</span><span class="t">The ORDER BY Oracle</span><span class="file">order-by-oracle.html</span></div>
+        <div class="slide">slide 7 “The Shapes It Takes”</div>
+        <div class="blurb">Every value is a parameter — yet an 18-question binary search extracts HAAS's salary through the sort order alone. Allowlisting (cure #3) kills the search at question zero.</div>
+        <div class="meta"><span class="zoom">zoom 150–175%</span><span class="keys">mouse: COBOL/Java · Trusted/Allowlisted · auto-attack</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="act">
+    <div class="ah"><b>Act 2</b> — the new injection point: prompt → SQL</div>
+    <div class="cards">
+      <a class="demo" href="./lethal-trifecta.html">
+        <div class="dh"><span class="ico">△</span><span class="t">The Lethal Trifecta</span><span class="file">lethal-trifecta.html</span></div>
+        <div class="slide">slide “The Lethal Trifecta”</div>
+        <div class="blurb">Starts disarmed (green OK). Each leg you switch on hands the attacker a little more; all three armed and the data walks out. Defense chips vary the kill (-551, masked rows, human DENY, weather-not-architecture).</div>
+        <div class="meta"><span class="zoom">zoom 175–200%</span><span class="keys"><b>1</b><b>2</b><b>3</b> legs · <b>R</b> replay</span><span class="live">live script: press 2 → 1 → 3</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="act">
+    <div class="ah"><b>Act 3</b> — AI assistants on z/OS: Zowe MCP + Db2</div>
+    <div class="cards">
+      <a class="demo" href="./mcp-in-90-seconds.html">
+        <div class="dh"><span class="ico">🔌</span><span class="t">MCP in Ninety Seconds</span><span class="file">mcp-in-90-seconds.html</span></div>
+        <div class="slide">slide 23 “MCP in Ninety Seconds”</div>
+        <div class="blurb">Self-running, exactly-90s six-chapter tour: handshake → tools/list → a live tools/call → transports → adoption. Real JSON-RPC frame shapes; “a tool is a stored procedure for AI”.</div>
+        <div class="meta"><span class="zoom">zoom 150–175%</span><span class="keys"><b>space</b> pause · <b>←</b><b>→</b> chapters</span><span class="live">self-running — just press play</span></div>
+      </a>
+      <a class="demo" href="./demo-a-schema-discovery.html">
+        <div class="dh"><span class="ico">🗺️</span><span class="t">Demo A: Schema Discovery</span><span class="file">demo-a-schema-discovery.html</span></div>
+        <div class="slide">slide “Demo A: An Assistant Meets a Subsystem”</div>
+        <div class="blurb">Replay of the real capture: the transcript types itself while the agent's mental model builds — tables, FK arrows, the off-graph warning for PAYMENT_TOKENS, one aggregate at the end.</div>
+        <div class="meta"><span class="zoom">zoom 125–150%</span><span class="keys">mouse: speed 1× / 1.5× / 2×</span><span class="live">real capture, sanitized</span></div>
+      </a>
+      <a class="demo" href="./demo-b-data-bites-back.html">
+        <div class="dh"><span class="ico">🪤</span><span class="t">Demo B: The Data Bites Back</span><span class="file">demo-b-data-bites-back.html</span></div>
+        <div class="slide">slide “Demo B: The Data Bites Back”</div>
+        <div class="blurb">The planted injection vs. six selectable protections, each with its kill point in the pipeline — honest SIMULATION vs MIRRORS-THE-REAL-CAPTURE badges, plus the “How the six compare” map.</div>
+        <div class="meta"><span class="zoom">zoom 125–150%</span><span class="keys"><b>space</b> run · mouse: protection selector</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="act">
+    <div class="ah"><b>Act 4</b> — is your Db2 ready?</div>
+    <div class="cards">
+      <a class="demo" href="./same-query-three-identities.html">
+        <div class="dh"><span class="ico">🎭</span><span class="t">Same Query, Three Identities</span><span class="file">same-query-three-identities.html</span></div>
+        <div class="slide">slide “Db2 for z/OS Had Agent Guardrails Before Agents”</div>
+        <div class="blurb">The SQL never changes — identity decides. DBA sees all; the app gets masked tokens; the agent gets consented rows + masked PII; the stolen credential authenticates and still dies with -551. All DDL verified against the Db2 13 docs.</div>
+        <div class="meta"><span class="zoom">zoom 125–150%</span><span class="keys"><b>1</b>–<b>4</b> identity · <b>R</b> replay · <b>space</b> tour</span><span class="live">▶ Tour auto-steps all four</span></div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <div class="nh">Viewing tips</div>
+  <ul>
+    <li><b>On-page controls (top-right, every page)</b>: ☀/☾ switches dark ↔ light, and <b>A&nbsp;A&nbsp;A</b> steps the text size (normal / +20% / +40%, multiplies with browser zoom). Both persist across pages.</li>
+    <li>All pages are self-contained — no server, no network calls; fonts are vendored in <code>fonts/</code>.</li>
+    <li>All pages respect <code>prefers-reduced-motion</code>; every animation can be replayed (<b>R</b> or the replay button) without reloading.</li>
+    <li>Everything shown is sanitized demo data (DEMO schema, AGENT01, example.com hosts).</li>
+  </ul>
+</div>
+
+<script>
+(function(){
+  const KEY = "idug-demo-theme", root = document.documentElement,
+        btn = document.getElementById("themeToggle");
+  function paint(){
+    const l = root.dataset.theme === "light";
+    btn.textContent = l ? "☾" : "☀";
+    const t = l ? "Switch to dark theme" : "Switch to light theme";
+    btn.setAttribute("aria-label", t); btn.title = t;
+  }
+  paint();
+  btn.addEventListener("click", () => {
+    const l = root.dataset.theme !== "light";
+    if(l) root.dataset.theme = "light"; else delete root.dataset.theme;
+    try{ localStorage.setItem(KEY, l ? "light" : "dark"); }catch(e){}
+    paint(); btn.blur();
+  });
+})();
+</script>
+<script>
+(function(){
+  const KEY = "idug-demo-fontsize", root = document.documentElement,
+        btns = document.querySelectorAll("#fontCtl button");
+  function paint(){
+    const cur = root.dataset.fontsize || "1";
+    btns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fs === cur)));
+  }
+  paint();
+  btns.forEach(b => b.addEventListener("click", () => {
+    const fs = b.dataset.fs;
+    if(fs === "1") delete root.dataset.fontsize; else root.dataset.fontsize = fs;
+    try{ localStorage.setItem(KEY, fs); }catch(e){}
+    paint(); b.blur();
+    window.dispatchEvent(new Event("resize"));
+  }));
+})();
+</script>
+</body>
+</html>
